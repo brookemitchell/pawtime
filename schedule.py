@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import List, Dict, Set, Optional
+from plotly import graph_objects as go
 
 from visit_type import VisitType
 

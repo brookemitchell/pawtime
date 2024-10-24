@@ -139,14 +139,14 @@ def create_schedule_gantt(schedule):
 class ScoreVisualizer:
     def __init__(self):
         self.score_categories = {
-            'Staff Availability': 20,
-            'Visit Type Alignment': 15,
-            'Species Alignment': 15,
-            'Health Complexity': 10,
-            'Preferred Time': 10,
-            'Expiring inventory': 10,
-            'Customer reliability': 10,
-            'Break time': 10
+            'Staff Availability': 30,
+            'Preferred Time': 22,
+            'Health Complexity': 12,
+            'Customer reliability': 22,
+            'Expiring inventory': 14,
+            'Species Alignment': 8,
+            'Break time': 8,
+            'Visit Type Alignment': 5
         }
 
         self.category_descriptions = {
@@ -346,6 +346,7 @@ def display_score_analysis(
     tab1, tab2 = st.tabs(["Individual Breakdowns", "Comparison"])
 
     with tab1:
+        # print(all_scores)
         for i, (time, scores) in enumerate(all_scores):
             col1, col2 = st.columns([2, 1])
 
@@ -360,10 +361,11 @@ def display_score_analysis(
                 st.markdown(f"**Total Score: {sum(scores.values()):.1f}/100**")
                 st.markdown("#### Key Factors:")
                 for category, score in scores.items():
-                    if score >= 0.7 * visualizer.score_categories[category]:
-                        st.markdown(f"✅ Strong {category.lower()}")
-                    elif score <= 0.3 * visualizer.score_categories[category]:
-                        st.markdown(f"⚠️ Weak {category.lower()}")
+                    print(category, score)
+                    print(visualizer.score_categories[category])
+                    max_score = visualizer.score_categories[category]
+                    if score >= 0.5 * max_score:
+                        st.markdown(f"✅ Good {category.lower()}")
 
     with tab2:
         comparison_fig = visualizer.create_comparison_chart(all_scores)

@@ -7,8 +7,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
-import clinic_data_generator
 from clinic_data_generator import test_data_generation
+from insights import ScheduleInsights
 from schedule import AdvancedTimeSlotGenerator, Staff, TimeSlot, Pet, Customer, \
     get_three_best_appointments, test_advanced_scheduler
 from visit_type import VisitType
@@ -343,7 +343,7 @@ def display_score_analysis(
         all_scores.append((time, scores))
 
     # Create tabs for different visualizations
-    tab1, tab2 = st.tabs(["Individual Breakdowns", "Comparison"])
+    tab1, tab2, tab3 = st.tabs(["Individual Breakdowns", "Comparison", "Insights"])
 
     with tab1:
         # print(all_scores)
@@ -383,6 +383,25 @@ def display_score_analysis(
                 )
             })
         st.table(pd.DataFrame(summary_data))
+
+    with tab3:
+        st.markdown("### Insights and Recommendations")
+        st.markdown("Based on the analysis, here are some insights and recommendations:")
+        st.markdown("1. **Preferred Time**: Optimal time slots are between 10 AM and 2 PM.")
+        st.markdown("2. **Staff Availability**: Ensure availability of staff with required capabilities.")
+        st.markdown("3. **Customer Reliability**: Consider customer history for peak hours.")
+        st.markdown("4. **Inventory Management**: Monitor inventory levels for vaccinations.")
+        st.markdown("5. **Species Alignment**: Schedule similar species appointments together.")
+
+        potential_slots = time_slot_generator.generate_potential_slots(
+            schedule,
+            staff_roster,
+            visit_type,
+            pet,
+            datetime.now()
+        )
+        insights = ScheduleInsights(schedule, staff_roster, potential_slots)
+        insights.display_insights()
 
 
 def main():

@@ -103,7 +103,7 @@ def generate_dummy_data():
                 random.choice(species_list)
             )
 
-    # Generate expiring inventory
+    # Generate Expiring inventory
     expiring_inventory = {
         VisitType.VACCINATION: 0.8,
         VisitType.SURGERY: 0.3,
@@ -129,8 +129,8 @@ def create_schedule_gantt(schedule):
     if df_schedule:
         df = pd.DataFrame(df_schedule)
         fig = px.timeline(df, x_start="Start", x_end="Finish", y="Task", color="Type",
-                          title="Daily Schedule",
-                          labels={"Task": "Staff Member", "Type": "Visit Type"})
+                          title="Daily schedule",
+                          labels={"Task": "Staff member", "Type": "Visit type"})
         fig.update_layout(height=300)
         return fig
     return None
@@ -144,9 +144,9 @@ class ScoreVisualizer:
             'Species Alignment': 15,
             'Health Complexity': 10,
             'Preferred Time': 10,
-            'Expiring Inventory': 10,
-            'Customer Reliability': 10,
-            'Padding Optimization': 10
+            'Expiring inventory': 10,
+            'Customer reliability': 10,
+            'Break time': 10
         }
 
         self.category_descriptions = {
@@ -155,9 +155,9 @@ class ScoreVisualizer:
             'Species Alignment': 'Score based on similar species nearby',
             'Health Complexity': 'Score based on adequate time allocation',
             'Preferred Time': 'Score based on optimal time of day',
-            'Expiring Inventory': 'Score based on inventory optimization',
-            'Customer Reliability': 'Score based on client history',
-            'Padding Optimization': 'Score based on optimal spacing'
+            'Expiring inventory': 'Score based on inventory optimization',
+            'Customer reliability': 'Score based on client history',
+            'Break time': 'Score based on optimal spacing'
         }
 
     def _get_score_components(
@@ -206,17 +206,17 @@ class ScoreVisualizer:
         # Preferred Time (10 points)
         scores['Preferred Time'] = 10 if appointment_details['is_preferred_time'] else 0
 
-        # Expiring Inventory (10 points)
-        scores['Expiring Inventory'] = 10 * expiring_inventory.get(visit_type, 0)
+        # Expiring inventory (10 points)
+        scores['Expiring inventory'] = 10 * expiring_inventory.get(visit_type, 0)
 
-        # Customer Reliability (10 points)
+        # Customer reliability (10 points)
         peak_hours = 10 <= time.hour <= 15
         if customer.late_history > 0.2 or customer.no_show_history > 0.1:
-            scores['Customer Reliability'] = 10 if peak_hours else 5
+            scores['Customer reliability'] = 10 if peak_hours else 5
         else:
-            scores['Customer Reliability'] = 5 if peak_hours else 10
+            scores['Customer reliability'] = 5 if peak_hours else 10
 
-        # Padding Optimization (10 points)
+        # Break time (10 points)
         padding_score = 10
         for existing_time, slot in schedule.items():
             time_diff = abs((existing_time - time).total_seconds() / 60)
@@ -224,7 +224,7 @@ class ScoreVisualizer:
                 padding_score -= 2
             if time_diff < appointment_details['padding_after']:
                 padding_score -= 2
-        scores['Padding Optimization'] = max(0, padding_score)
+        scores['Break time'] = max(0, padding_score)
 
         return scores
 
@@ -384,7 +384,7 @@ def display_score_analysis(
 
 
 def main():
-    st.title("🐾 Veterinary Practice Scheduler")
+    st.title("🐾 Purfect timing")
 
     # Generate dummy data
     staff_roster, schedule, expiring_inventory, summary = test_data_generation()
@@ -493,7 +493,7 @@ def main():
             st.header("Inventory Status")
             inventory_level = expiring_inventory[VisitType(visit_type)]
             st.progress(inventory_level)
-            st.caption(f"Expiring Inventory for {visit_type}: {inventory_level * 100:.0f}%")
+            st.caption(f"Expiring inventory for {visit_type}: {inventory_level * 100:.0f}%")
 
 
 if __name__ == "__main__":

@@ -253,7 +253,7 @@ def test_data_generation():
         'staff_workload': staff_workload
     }
 
-    # Generate expiring inventory
+    # Generate Expiring inventory
     expiring_inventory = {
         VisitType.VACCINATION: 0.8,
         VisitType.SURGERY: 0.3,

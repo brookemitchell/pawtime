@@ -97,7 +97,7 @@ def calculate_slot_score(
     if visit_type in expiring_inventory:
         score += 10 * expiring_inventory[visit_type]
 
-    # Factor 7: Customer reliability (0-10 points)
+    # Factor 7: Break time (0-10 points)
     peak_hours = 10 <= proposed_time.hour <= 15
     if customer.late_history > 0.2 or customer.no_show_history > 0.1:
         if peak_hours:  # High demand hours better for unreliable clients

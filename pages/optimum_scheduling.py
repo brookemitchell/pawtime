@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from clinic_data_generator import test_data_generation
+from forecasting import ServiceDemandForecasting
 from insights import ScheduleInsights
 from schedule import AdvancedTimeSlotGenerator, Staff, TimeSlot, Pet, Customer, \
     get_three_best_appointments, test_advanced_scheduler
@@ -376,7 +377,7 @@ def display_score_analysis(
         all_scores.append((time, scores))
 
     # Create tabs for different visualizations
-    tab1, tab2, tab3 = st.tabs(["Individual Breakdowns", "Comparison", "Insights"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Individual Breakdowns", "Comparison", "Insights", "Forecast"])
 
     with tab1:
         # print(all_scores)
@@ -431,6 +432,15 @@ def display_score_analysis(
         insights = ScheduleInsights(schedule, staff_roster, potential_slots)
         insights.display_insights()
         insights.display_specialization_insights()
+
+    with tab4:
+
+        st.subheader("🎯 Service Distribution Analysis")
+
+        # Add forecasting section
+        forecasting = ServiceDemandForecasting(schedule)
+        forecasting.display_forecast()
+
 
 def main():
     st.title("🐾 Purfect timing")

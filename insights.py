@@ -7,6 +7,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 
+from forecasting import ServiceDemandForecasting
 from schedule import TimeSlot
 
 
@@ -185,7 +186,7 @@ class ScheduleInsights:
 
     def display_specialization_insights(self):
         """Display service analysis visualizations with enhanced coverage plot"""
-        st.subheader("🎯 Service Distribution Analysis")
+
 
         metrics = self.get_specialization_metrics()
 
@@ -364,13 +365,6 @@ class ScheduleInsights:
                 "Consider redistributing appointments to balance the daily schedule"
             ))
 
-        # Check for underutilized periods
-        for hour in range(9, 17):
-            if hourly_count[hour] < len(self.staff_roster) * 0.5:
-                insights["optimization"].append((
-                    f"Underutilized Period: {hour}:00",
-                    f"Consider booking more appointments during {hour}:00-{hour + 1}:00"
-                ))
 
     def _analyze_appointment_clustering(self, insights: Dict):
         """Analyze clustering of similar appointments"""

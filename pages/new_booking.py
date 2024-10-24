@@ -1,12 +1,63 @@
 import random
 from datetime import datetime, timedelta
+from typing import Dict
 
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from schedule import get_three_best_appointments, VisitType, Staff, Customer, Pet, TimeSlot
+from schedule import AdvancedTimeSlotGenerator, Staff, TimeSlot, Pet, Customer, \
+    get_three_best_appointments
+from visit_type import VisitType
 
+
+def generate_dummy_schedule(
+        generator: AdvancedTimeSlotGenerator,
+        staff_roster: Dict[str, Staff],
+        num_appointments: int = 10
+) -> Dict[datetime, TimeSlot]:
+    """Generate realistic dummy schedule data"""
+    schedule = {}
+    start_date = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
+    species_list = ["dog", "cat", "bird", "rabbit"]
+
+    # Create dummy pet for slot generation
+    dummy_pet = Pet("dummy", "dog", 0.5, [])
+
+    # Generate some appointments
+    for _ in range(num_appointments):
+        visit_type = random.choice(list(VisitType))
+        potential_slots = generator.generate_potential_slots(
+            schedule,
+            staff_roster,
+            visit_type,
+            dummy_pet,
+            start_date
+        )
+
+        if potential_slots:
+            time = random.choice(potential_slots)
+            details = generator.get_appointment_details(time, visit_type, dummy_pet)
+
+            # Find available staff
+            available_staff = list(generator._check_staff_availability(
+                time,
+                details['duration'],
+                staff_roster,
+                schedule,
+                visit_type
+            ))
+
+            if available_staff:
+                schedule[time] = TimeSlot(
+                    time,
+                    details['end_time'],
+                    visit_type,
+                    random.choice(available_staff),
+                    random.choice(species_list)
+                )
+
+    return schedule
 
 def generate_dummy_data():
     """Generate dummy data for testing the scheduling system."""
@@ -86,6 +137,8 @@ def main():
 
     # Generate dummy data
     staff_roster, schedule, expiring_inventory = generate_dummy_data()
+    generator = AdvancedTimeSlotGenerator()
+    schedule = generate_dummy_schedule(generator, staff_roster)
 
     # Display current schedule
     st.header("Current Daily Schedule")
@@ -131,14 +184,24 @@ def main():
     pet = Pet("new_pet", species, health_complexity, [])
 
     if st.button("Find Best Appointment Times"):
-        # Get appointment suggestions
+
+        # When finding appointment times:
+        potential_slots = generator.generate_potential_slots(
+            schedule,
+            staff_roster,
+            VisitType(visit_type),
+            pet
+        )
+
+        # Get top 3 scored slots from potential_slots using the scoring system
         best_times = get_three_best_appointments(
             schedule,
             staff_roster,
             VisitType(visit_type),
             customer,
             pet,
-            expiring_inventory
+            expiring_inventory,
+            potential_slots  # Pass potential slots to scoring system
         )
 
         # Display results

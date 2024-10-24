@@ -22,10 +22,10 @@ def generate_dummy_schedule(
     """Generate realistic dummy schedule data"""
     schedule = {}
     start_date = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
-    species_list = ["dog", "cat", "bird", "rabbit"]
+    species_list = ["canine", "feline", "avian", "exotic"]
 
     # Create dummy pet for slot generation
-    dummy_pet = Pet("dummy", "dog", 0.5, [])
+    dummy_pet = Pet("dummy", "canine", 0.5, [])
 
     # Generate some appointments
     for _ in range(num_appointments):
@@ -64,9 +64,9 @@ def generate_dummy_schedule(
 
 
 def generate_dummy_data():
-    """Generate dummy data for testing the scheduling system."""
+    """Generate dummy data with a dense schedule."""
 
-    # Generate staff roster
+    # Generate staff roster with staggered lunch breaks
     staff_roster = {
         "Dr. Smith": Staff(
             "Dr. Smith",
@@ -85,33 +85,66 @@ def generate_dummy_data():
         )
     }
 
-    # Generate existing schedule
+    # Generate dense schedule
     schedule = {}
     current_date = datetime.now().replace(hour=9, minute=0, second=0, microsecond=0)
     visit_types = list(VisitType)
-    species_list = ["dog", "cat", "bird", "rabbit"]
+    species_list = ["Canine", "Feline", "Avian", "Exotic"]
 
-    # Add some random appointments throughout the day
-    for _ in range(8):
-        time = current_date + timedelta(minutes=random.randint(0, 16) * 30)
-        if time not in schedule:
-            schedule[time] = TimeSlot(
-                time,
-                time + timedelta(minutes=30),
-                random.choice(visit_types),
-                random.choice(list(staff_roster.keys())),
-                random.choice(species_list)
-            )
+    # Create time slots every 30 minutes for each staff member
+    for hour in range(9, 17):  # 9 AM to 5 PM
+        for minute in [0, 30]:  # Every 30 minutes
+            time = current_date.replace(hour=hour, minute=minute)
 
-    # Generate Expiring inventory
+            # Try to schedule each staff member
+            for staff_id, staff in staff_roster.items():
+                # Skip if during lunch hour
+                if time.hour != staff.lunch_start.hour:
+                    # 90% chance of booking (high density)
+                    if random.random() < 0.9:
+                        # Select appropriate visit type for staff
+                        available_types = list(staff.capabilities)
+                        visit_type = random.choice(available_types)
+
+                        schedule[time] = TimeSlot(
+                            time,
+                            time + timedelta(minutes=30),
+                            visit_type,
+                            staff_id,
+                            random.choice(species_list)
+                        )
+
+    # Generate expiring inventory
     expiring_inventory = {
         VisitType.VACCINATION: 0.8,
         VisitType.SURGERY: 0.3,
         VisitType.DENTAL: 0.5
     }
 
-    return staff_roster, schedule, expiring_inventory
+    # Calculate schedule statistics
+    total_possible_slots = len(staff_roster) * 16  # 8 hours * 2 slots/hour
+    actual_bookings = len(schedule)
+    utilization = (actual_bookings / total_possible_slots) * 100
 
+    summary = {
+        'total_slots': total_possible_slots,
+        'booked_slots': actual_bookings,
+        'utilization': utilization,
+        'appointments_by_type': {},
+        'appointments_by_staff': {}
+    }
+
+    # Calculate appointment distributions
+    for slot in schedule.values():
+        # Count by type
+        visit_type = slot.visit_type.value
+        summary['appointments_by_type'][visit_type] = summary['appointments_by_type'].get(visit_type, 0) + 1
+
+        # Count by staff
+        staff_id = slot.staff_id
+        summary['appointments_by_staff'][staff_id] = summary['appointments_by_staff'].get(staff_id, 0) + 1
+
+    return staff_roster, schedule, expiring_inventory, summary
 
 def create_schedule_gantt(schedule):
     """Create a Gantt chart of the daily schedule."""
@@ -430,7 +463,7 @@ def main():
         )
 
         # Pet details
-        species = st.selectbox("Pet Species", ["dog", "cat", "bird", "rabbit"])
+        species = st.selectbox("Pet Species", ["Canine", "Feline", "Avian", "Exotic"])
         health_complexity = st.slider(
             "Pet Health Complexity",
             0.0, 1.0, 0.3,
@@ -509,7 +542,7 @@ def main():
             st.header("Inventory Status")
             inventory_level = expiring_inventory[VisitType(visit_type)]
             st.progress(inventory_level)
-            st.caption(f"Expiring inventory for {visit_type}: {inventory_level * 100:.0f}%")
+            st.caption(f"Expiring vaccinations: {inventory_level * 100:.0f}%")
 
 
 if __name__ == "__main__":

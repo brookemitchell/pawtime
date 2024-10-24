@@ -76,7 +76,7 @@ def generate_sample_appointments(selected_date: datetime, vets: List[Veterinaria
         return st.session_state.appointments
 
     appointments = []
-    pet_types = ["Dog", "Cat", "Bird", "Rabbit", "Hamster"]
+    pet_types = ["Canine", "Feline", "Avian", "Exotic"]
     pet_names = ["Max", "Luna", "Charlie", "Bella", "Rocky", "Lucy", "Bailey", "Daisy"]
     owner_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis"]
 
@@ -123,8 +123,8 @@ def edit_appointment_modal():
             new_pet_name = st.text_input("Pet Name", apt.pet_name)
             new_pet_type = st.selectbox(
                 "Pet Type",
-                ["Dog", "Cat", "Bird", "Rabbit", "Hamster"],
-                index=["Dog", "Cat", "Bird", "Rabbit", "Hamster"].index(apt.pet_type)
+                ["Canine", "Feline", "Avian", "Exotic"],
+                index=["Canine", "Feline", "Avian", "Exotic"].index(apt.pet_type)
             )
             new_owner_name = st.text_input("Owner Name", apt.owner_name)
             is_repeat_customer = st.checkbox("Repeat Customer", value=False)
@@ -330,7 +330,7 @@ def main():
                 start_time=selected_datetime.replace(hour=9),
                 end_time=selected_datetime.replace(hour=9) + timedelta(minutes=30),
                 pet_name="",
-                pet_type="Dog",
+                pet_type="Canine",
                 appointment_type=AppointmentType.CHECKUP,
                 vet=st.session_state.vets[0],
                 owner_name="",

@@ -206,7 +206,7 @@ def test_advanced_scheduler():
             datetime(2024, 10, 24, 9, 30),
             VisitType.VACCINATION,
             "staff1",
-            "dog"
+            "canine"
         )
     }
 
@@ -224,7 +224,7 @@ def test_advanced_scheduler():
     }
 
     customer = Customer("cust1", 0.1, 0.05)
-    pet = Pet("pet1", "dog", 0.3, [])
+    pet = Pet("pet1", "canine", 0.3, [])
     expiring_inventory = {VisitType.VACCINATION: 0.8}
 
     # Generate potential slots using the advanced generator

@@ -184,7 +184,7 @@ class ScheduleInsights:
         return metrics
 
     def display_specialization_insights(self):
-        """Display service analysis visualizations"""
+        """Display service analysis visualizations with enhanced coverage plot"""
         st.subheader("🎯 Service Distribution Analysis")
 
         metrics = self.get_specialization_metrics()
@@ -219,22 +219,87 @@ class ScheduleInsights:
                          title='Staff Service Distribution')
             st.plotly_chart(fig, use_container_width=True)
 
-        # Display hourly coverage
+        # Enhanced service coverage by hour visualization
         st.write("#### Service Coverage by Hour")
-        hourly_data = []
-        for hour, services in metrics['hourly_coverage'].items():
-            for service, count in services.items():
-                hourly_data.append({
+
+        # Create complete hourly dataset including zeros
+        complete_hourly_data = []
+        services = set()
+        hours = range(9, 17)  # 9 AM to 5 PM
+
+        # Get all unique services
+        for hour_data in metrics['hourly_coverage'].values():
+            services.update(hour_data.keys())
+
+        # Create complete dataset with all hours and services
+        for hour in hours:
+            hour_coverage = metrics['hourly_coverage'][hour]
+            for service in services:
+                complete_hourly_data.append({
                     'Hour': f"{hour:02d}:00",
                     'Service': service,
-                    'Appointments': count
+                    'Appointments': hour_coverage.get(service, 0),
+                    'Hour_num': hour  # For sorting
                 })
 
-        if hourly_data:
-            hourly_df = pd.DataFrame(hourly_data)
-            fig = px.line(hourly_df, x='Hour', y='Appointments', color='Service',
-                          title='Service Coverage Throughout the Day')
+        if complete_hourly_data:
+            hourly_df = pd.DataFrame(complete_hourly_data)
+
+            # Create heatmap
+            pivot_df = hourly_df.pivot(
+                index='Service',
+                columns='Hour',
+                values='Appointments'
+            )
+
+            fig = go.Figure()
+
+            # Add heatmap
+            fig.add_trace(go.Heatmap(
+                z=pivot_df.values,
+                x=pivot_df.columns,
+                y=pivot_df.index,
+                colorscale='YlOrRd',
+                showscale=True,
+                text=pivot_df.values,
+                texttemplate="%{text}",
+                textfont={"size": 14},
+                colorbar=dict(
+                    title="Number of<br>Appointments",
+                    titleside="right"
+                )
+            ))
+
+            # Update layout
+            fig.update_layout(
+                title="Service Coverage Heatmap",
+                xaxis_title="Hour of Day",
+                yaxis_title="Service Type",
+                height=400,
+                margin=dict(l=20, r=20, t=40, b=20),
+                xaxis=dict(
+                    tickmode='array',
+                    ticktext=[f"{hour:02d}:00" for hour in hours],
+                    tickvals=[f"{hour:02d}:00" for hour in hours]
+                )
+            )
+
             st.plotly_chart(fig, use_container_width=True)
+
+            # Add coverage analysis
+            st.write("#### Coverage Analysis")
+
+            # Peak hours analysis
+            peak_hours = hourly_df.groupby('Hour')['Appointments'].sum()
+            max_appointments = peak_hours.max()
+            peak_time = peak_hours.idxmax()
+
+            st.metric(
+                "Peak Hour",
+                peak_time,
+                f"{max_appointments} appointments"
+            )
+
 
     def _analyze_peak_hours(self, insights: Dict):
         """Analyze peak hours and suggest optimizations"""

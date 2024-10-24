@@ -48,10 +48,10 @@ class VetClinicDataGenerator:
 
         # Species distribution for realistic appointment generation
         self.SPECIES_DISTRIBUTION = {
-            'dog': 0.45,
-            'cat': 0.35,
-            'bird': 0.12,
-            'rabbit': 0.08
+            'canine': 0.45,
+            'feline': 0.35,
+            'avian': 0.12,
+            'exotic': 0.08
         }
 
         # Visit type distribution for realistic scheduling

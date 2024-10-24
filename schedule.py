@@ -122,7 +122,7 @@ def calculate_slot_score(
 
     return score
 
-
+# Core algorithm for scheduling appointments
 def get_three_best_appointments(
         schedule: Dict[datetime, TimeSlot],
         staff_roster: Dict[str, Staff],

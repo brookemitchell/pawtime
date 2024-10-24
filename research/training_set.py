@@ -14,7 +14,7 @@ data = {
     'appointment_time': [9, 10, 11, 14, 15, 16],  # Hour of the day
     'duration': [30, 45, 60, 30, 60, 45],  # Duration in minutes
     'pet_type': [1, 0, 1, 0, 1, 0],  # 1 for dog, 0 for cat
-    'wait_time': [5, 15, 10, 20, 5, 30]  # Wait time in minutes
+    'wait_time': [5, 15, 10, 20, 5, 30]  # Wait time in minutes, outcome basecd on appointment_time, duration, and pet_type
 }
 
 df = pd.DataFrame(data)

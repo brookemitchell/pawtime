@@ -386,12 +386,6 @@ def display_score_analysis(
 
     with tab3:
         st.markdown("### Insights and Recommendations")
-        st.markdown("Based on the analysis, here are some insights and recommendations:")
-        st.markdown("1. **Preferred Time**: Optimal time slots are between 10 AM and 2 PM.")
-        st.markdown("2. **Staff Availability**: Ensure availability of staff with required capabilities.")
-        st.markdown("3. **Customer Reliability**: Consider customer history for peak hours.")
-        st.markdown("4. **Inventory Management**: Monitor inventory levels for vaccinations.")
-        st.markdown("5. **Species Alignment**: Schedule similar species appointments together.")
 
         potential_slots = time_slot_generator.generate_potential_slots(
             schedule,
@@ -400,9 +394,10 @@ def display_score_analysis(
             pet,
             datetime.now()
         )
+
         insights = ScheduleInsights(schedule, staff_roster, potential_slots)
         insights.display_insights()
-
+        insights.display_specialization_insights()
 
 def main():
     st.title("🐾 Purfect timing")

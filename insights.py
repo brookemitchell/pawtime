@@ -1,8 +1,11 @@
 from collections import defaultdict
 from datetime import datetime
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Set
 
+import pandas as pd
 import streamlit as st
+import plotly.express as px
+import plotly.graph_objects as go
 
 from schedule import TimeSlot
 
@@ -44,6 +47,194 @@ class ScheduleInsights:
         self._analyze_schedule_risks(insights)
 
         return insights
+
+    def _analyze_specialization_distribution(self, insights: Dict):
+        """Analyze distribution of specialized appointments and staff expertise"""
+        # Track specialization utilization
+        specialization_counts = defaultdict(int)
+        staff_specialization_usage = defaultdict(lambda: defaultdict(int))
+        total_appointments = 0
+
+        # Get all unique specialties from staff capabilities
+        all_specialties = set()
+        for staff in self.staff_roster.values():
+            all_specialties.update(visit_type.value for visit_type in staff.capabilities)
+
+        # Analyze appointment distribution
+        for time_slot in self.schedule.values():
+            total_appointments += 1
+            visit_type = time_slot.visit_type
+            staff_member = self.staff_roster.get(time_slot.staff_id)
+
+            if staff_member:
+                # Count specialization usage
+                for capability in staff_member.capabilities:
+                    if self._is_capability_relevant(capability, visit_type):
+                        specialization_counts[capability.value] += 1
+                        staff_specialization_usage[staff_member.id][capability.value] += 1
+
+        # Analyze specialization balance
+        if total_appointments > 0:
+            # Check for underutilized specialties
+            for specialty in all_specialties:
+                usage_rate = specialization_counts[specialty] / total_appointments
+                if usage_rate < 0.1 and specialization_counts[specialty] > 0:
+                    insights["optimization"].append((
+                        f"Underutilized Service: {specialty}",
+                        "Consider promoting these services or adjusting staff allocation"
+                    ))
+                elif usage_rate > 0.4:
+                    insights["workload"].append((
+                        f"High Service Demand: {specialty}",
+                        "Consider adding more staff with this capability"
+                    ))
+
+        # Analyze staff capability utilization
+        for staff_id, capabilities in staff_specialization_usage.items():
+            primary_capability = max(capabilities.items(), key=lambda x: x[1], default=(None, 0))
+            if primary_capability[0]:
+                total_staff_appointments = sum(capabilities.values())
+                if total_staff_appointments > 0:
+                    primary_usage_rate = primary_capability[1] / total_staff_appointments
+                    if primary_usage_rate < 0.5:
+                        insights["efficiency"].append((
+                            f"Staff Service Utilization: {staff_id}",
+                            f"Consider aligning more appointments with {staff_id}'s primary service area"
+                        ))
+
+        # Check for specialty coverage gaps
+        self._analyze_capability_coverage(insights, all_specialties)
+
+    def _analyze_capability_coverage(self, insights: Dict, all_specialties: Set[str]):
+        """Analyze gaps in service coverage throughout the day"""
+        hourly_coverage = defaultdict(lambda: defaultdict(set))
+
+        # Build hourly coverage map
+        for hour in range(9, 17):  # 9 AM to 5 PM
+            for staff in self.staff_roster.values():
+                # Check if staff is available this hour (not on lunch)
+                lunch_hour = staff.lunch_start.hour
+                if hour != lunch_hour:
+                    for capability in staff.capabilities:
+                        hourly_coverage[hour][capability.value].add(staff.id)
+
+        # Check for coverage gaps
+        for specialty in all_specialties:
+            gap_hours = []
+            for hour in range(9, 17):
+                if not hourly_coverage[hour][specialty]:
+                    gap_hours.append(hour)
+
+            if gap_hours:
+                insights["risk"].append((
+                    f"Service Coverage Gap: {specialty}",
+                    f"No coverage during hours: {', '.join(f'{h:02d}:00' for h in gap_hours)}"
+                ))
+
+    def _is_capability_relevant(self, capability: 'VisitType', visit_type: 'VisitType') -> bool:
+        """Determine if a capability matches the visit type"""
+        return capability == visit_type
+
+    def _is_specialty_relevant(self, specialty: str, visit_type: 'VisitType') -> bool:
+        """Determine if a specialty is relevant for a given visit type"""
+        # Map specialties to visit types
+        specialty_map = {
+            'general': {
+                'CONSULT', 'WELLNESS', 'VACCINATION'
+            },
+            'surgery': {
+                'SURGERY'
+            },
+            'dental': {
+                'DENTAL'
+            },
+            'exotic': {
+                'SPECIALTY'
+            },
+            'emergency': {
+                'SURGERY', 'SPECIALTY'
+            }
+        }
+
+        if specialty.lower() in specialty_map:
+            return visit_type.name in specialty_map[specialty.lower()]
+        return False
+
+    def get_specialization_metrics(self) -> Dict:
+        """Get metrics about service distribution"""
+        metrics = {
+            'specialty_utilization': defaultdict(int),
+            'staff_specialty_load': defaultdict(lambda: defaultdict(int)),
+            'hourly_coverage': defaultdict(lambda: defaultdict(int))
+        }
+
+        # Calculate metrics
+        for time_slot in self.schedule.values():
+            visit_type = time_slot.visit_type
+            staff_member = self.staff_roster.get(time_slot.staff_id)
+
+            if staff_member:
+                hour = time_slot.start_time.hour
+                for capability in staff_member.capabilities:
+                    if self._is_capability_relevant(capability, visit_type):
+                        metrics['specialty_utilization'][capability.value] += 1
+                        metrics['staff_specialty_load'][staff_member.id][capability.value] += 1
+                        metrics['hourly_coverage'][hour][capability.value] += 1
+
+        return metrics
+
+    def display_specialization_insights(self):
+        """Display service analysis visualizations"""
+        st.subheader("🎯 Service Distribution Analysis")
+
+        metrics = self.get_specialization_metrics()
+
+        # Display service utilization
+        st.write("#### Service Type Utilization")
+        specialty_data = [
+            {'Service': specialty, 'Appointments': count}
+            for specialty, count in metrics['specialty_utilization'].items()
+        ]
+
+        if specialty_data:
+            specialty_df = pd.DataFrame(specialty_data)
+            fig = px.bar(specialty_df, x='Service', y='Appointments',
+                         title='Appointments by Service Type')
+            st.plotly_chart(fig, use_container_width=True)
+
+        # Display staff service usage
+        st.write("#### Staff Service Distribution")
+        staff_service_data = []
+        for staff_id, services in metrics['staff_specialty_load'].items():
+            for service, count in services.items():
+                staff_service_data.append({
+                    'Staff': staff_id,
+                    'Service': service,
+                    'Appointments': count
+                })
+
+        if staff_service_data:
+            staff_df = pd.DataFrame(staff_service_data)
+            fig = px.bar(staff_df, x='Staff', y='Appointments', color='Service',
+                         title='Staff Service Distribution')
+            st.plotly_chart(fig, use_container_width=True)
+
+        # Display hourly coverage
+        st.write("#### Service Coverage by Hour")
+        hourly_data = []
+        for hour, services in metrics['hourly_coverage'].items():
+            for service, count in services.items():
+                hourly_data.append({
+                    'Hour': f"{hour:02d}:00",
+                    'Service': service,
+                    'Appointments': count
+                })
+
+        if hourly_data:
+            hourly_df = pd.DataFrame(hourly_data)
+            fig = px.line(hourly_df, x='Hour', y='Appointments', color='Service',
+                          title='Service Coverage Throughout the Day')
+            st.plotly_chart(fig, use_container_width=True)
 
     def _analyze_peak_hours(self, insights: Dict):
         """Analyze peak hours and suggest optimizations"""

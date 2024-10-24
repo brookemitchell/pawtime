@@ -2,9 +2,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import List, Dict, Set, Optional
-from plotly import graph_objects as go
 
 from visit_type import VisitType
+
 
 @dataclass
 class TimeSlot:
@@ -52,11 +52,12 @@ def calculate_slot_score(
     score = 0.0
 
     # Get appointment details from generator
-    appointment_details = time_slot_generator.get_appointment_details(
+    appointment_details = (
+        time_slot_generator.get_appointment_details(
         proposed_time,
         visit_type,
         pet
-    )
+    ))
 
     # Factor 1: Staff availability and capability (0-20 points)
     available_staff = time_slot_generator._check_staff_availability(

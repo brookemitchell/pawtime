@@ -4,11 +4,13 @@ from typing import Dict, List, Tuple
 
 import pandas as pd
 import plotly.express as px
-import streamlit as st
 import plotly.graph_objects as go
+import streamlit as st
 
+import clinic_data_generator
+from clinic_data_generator import test_data_generation
 from schedule import AdvancedTimeSlotGenerator, Staff, TimeSlot, Pet, Customer, \
-    get_three_best_appointments
+    get_three_best_appointments, test_advanced_scheduler
 from visit_type import VisitType
 
 
@@ -38,7 +40,7 @@ def generate_dummy_schedule(
 
         if potential_slots:
             time = random.choice(potential_slots)
-            details = generator.get_appointment_details(time, visit_type, dummy_pet)
+            details =  generator.get_appointment_details(time, visit_type, dummy_pet)
 
             # Find available staff
             available_staff = list(generator._check_staff_availability(
@@ -59,6 +61,7 @@ def generate_dummy_schedule(
                 )
 
     return schedule
+
 
 def generate_dummy_data():
     """Generate dummy data for testing the scheduling system."""
@@ -308,6 +311,7 @@ class ScoreVisualizer:
 
         return fig
 
+
 def display_score_analysis(
         best_times: List[datetime],
         schedule: Dict,
@@ -383,9 +387,13 @@ def main():
     st.title("🐾 Veterinary Practice Scheduler")
 
     # Generate dummy data
-    staff_roster, schedule, expiring_inventory = generate_dummy_data()
-    generator = AdvancedTimeSlotGenerator()
-    schedule = generate_dummy_schedule(generator, staff_roster)
+    staff_roster, schedule, expiring_inventory, summary = test_data_generation()
+    time_slot_generator = AdvancedTimeSlotGenerator()
+
+    # Display staff information
+    st.sidebar.subheader("Staff on Duty")
+    for staff_id, staff in staff_roster.items():
+        st.sidebar.write(f"• {staff_id}")
 
     # Display current schedule
     st.header("Current Daily Schedule")
@@ -432,15 +440,13 @@ def main():
 
     if st.button("Find Best Appointment Times"):
 
-        # When finding appointment times:
-        potential_slots = generator.generate_potential_slots(
-            schedule,
-            staff_roster,
-            VisitType(visit_type),
-            pet
-        )
+        # Generate potential slots for new appointment
+        potential_slots = test_advanced_scheduler()
 
+
+        # Use in appointment scheduling
         # Get top 3 scored slots from potential_slots using the scoring system
+        # When finding appointments
         best_times = get_three_best_appointments(
             schedule,
             staff_roster,
@@ -449,7 +455,7 @@ def main():
             pet,
             expiring_inventory,
             potential_slots,
-            generator
+            time_slot_generator
         )
 
         # Display the basic appointment suggestions
@@ -466,9 +472,8 @@ def main():
             customer,
             pet,
             expiring_inventory,
-            generator
+            time_slot_generator
         )
-
 
         # Display staff availability chart
         st.header("Staff Availability Overview")
@@ -488,7 +493,7 @@ def main():
             st.header("Inventory Status")
             inventory_level = expiring_inventory[VisitType(visit_type)]
             st.progress(inventory_level)
-            st.caption(f"Inventory level for {visit_type}: {inventory_level * 100:.0f}%")
+            st.caption(f"Expiring Inventory for {visit_type}: {inventory_level * 100:.0f}%")
 
 
 if __name__ == "__main__":

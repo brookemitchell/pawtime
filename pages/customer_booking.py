@@ -520,14 +520,15 @@ def main():
         st.header("Your Appointments")
         if st.session_state.appointments:
             for i, apt in enumerate(st.session_state.appointments, 1):
-                with st.expander(f"Appointment {i}"):
-                    st.write(f"**Date:** {apt.datetime.strftime('%Y-%m-%d %H:%M')}")
-                    st.write(f"**Doctor:** Dr. {apt.vet.name}")
-                    st.write(f"**Price:** ${apt.price:.2f}")
-                    st.write(f"**Duration:** {apt.estimated_duration} minutes")
-                    if st.button("Cancel Appointment", key=f"cancel_{i}"):
-                        st.session_state.appointments.remove(apt)
-                        st.success("Appointment cancelled successfully!")
+                if apt is not None and hasattr(apt, 'datetime'):
+                    with st.expander(f"Appointment {i}"):
+                        st.write(f"**Date:** {apt.datetime.strftime('%Y-%m-%d %H:%M')}")
+                        st.write(f"**Doctor:** Dr. {apt.vet.name}")
+                        st.write(f"**Price:** ${apt.price:.2f}")
+                        st.write(f"**Duration:** {apt.estimated_duration} minutes")
+                        if st.button("Cancel Appointment", key=f"cancel_{i}"):
+                            st.session_state.appointments.remove(apt)
+                            st.success("Appointment cancelled successfully!")
         else:
             st.info("No appointments booked yet.")
 

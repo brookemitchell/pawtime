@@ -1,12 +1,14 @@
 import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from enum import Enum
 from typing import List, Set
 
 import pandas as pd
 import plotly.figure_factory as ff
 import streamlit as st
+
+from appt_types import AppointmentType
+from pricing_calculator import PricingCalculator
 
 
 # Data structures
@@ -16,15 +18,6 @@ class Veterinarian:
     name: str
     specialties: Set[str]
     color: str
-
-
-class AppointmentType(Enum):
-    CHECKUP = "Checkup"
-    VACCINATION = "Vaccination"
-    SURGERY = "Surgery"
-    EMERGENCY = "Emergency"
-    GROOMING = "Grooming"
-    DENTAL = "Dental"
 
 
 @dataclass
@@ -118,6 +111,7 @@ def edit_appointment_modal():
         return
 
     apt = st.session_state.editing_appointment
+    pricing_calculator = PricingCalculator()
 
     with st.form(key="edit_appointment_form", clear_on_submit=True):
         st.subheader("Edit Appointment")
@@ -133,6 +127,7 @@ def edit_appointment_modal():
                 index=["Dog", "Cat", "Bird", "Rabbit", "Hamster"].index(apt.pet_type)
             )
             new_owner_name = st.text_input("Owner Name", apt.owner_name)
+            is_repeat_customer = st.checkbox("Repeat Customer", value=False)
 
         with col2:
             new_appointment_type = st.selectbox(
@@ -151,12 +146,12 @@ def edit_appointment_modal():
                 ["Confirmed", "Check-in", "In Progress", "Completed"],
                 index=["Confirmed", "Check-in", "In Progress", "Completed"].index(apt.status)
             )
+            is_emergency = st.checkbox("Emergency Appointment", value=False)
 
         # Time selection
         st.subheader("Appointment Time")
         time_col1, time_col2 = st.columns(2)
 
-        # Calculate current duration in minutes
         current_duration = int((apt.end_time - apt.start_time).total_seconds() / 60)
 
         with time_col1:
@@ -169,6 +164,34 @@ def edit_appointment_modal():
                 [30, 45, 60],
                 index=[30, 45, 60].index(current_duration)
             )
+
+        # Calculate and display pricing
+        price_info = pricing_calculator.calculate_price(
+            appointment_type=AppointmentType(new_appointment_type),
+            duration=duration,
+            pet_type=new_pet_type,
+            start_time=datetime.combine(new_date, new_start_time),
+            is_emergency=is_emergency,
+            is_repeat_customer=is_repeat_customer
+        )
+
+        # Display pricing breakdown
+        st.subheader("📊 Pricing Breakdown")
+        price_col1, price_col2 = st.columns(2)
+
+        with price_col1:
+            st.write(f"Base Price: ${price_info['base_price']:.2f}")
+            st.write(f"Duration Adjustment: {price_info['duration_adjustment']}")
+            st.write(f"Pet Type Adjustment: {price_info['pet_type_adjustment']}")
+
+        with price_col2:
+            st.write(f"Time of Day Adjustment: {price_info['time_of_day_adjustment']}")
+            if price_info['emergency_fee'] == "Yes":
+                st.write("Emergency Fee: +50%")
+            if price_info['repeat_customer_discount'] == "Yes":
+                st.write("Repeat Customer Discount: -10%")
+
+        st.markdown(f"### Final Price: ${price_info['final_price']:.2f}")
 
         # Notes
         new_notes = st.text_area("Notes", apt.notes)
@@ -190,11 +213,9 @@ def edit_appointment_modal():
 
         # Handle form submission
         if submit_button:
-            # Create new datetime objects
             new_start_datetime = datetime.combine(new_date, new_start_time)
             new_end_datetime = new_start_datetime + timedelta(minutes=duration)
 
-            # Update appointment
             new_appointment = Appointment(
                 id=apt.id,
                 start_time=new_start_datetime,
@@ -205,10 +226,9 @@ def edit_appointment_modal():
                 vet=new_vet,
                 owner_name=new_owner_name,
                 status=new_status,
-                notes=new_notes
+                notes=f"{new_notes}\nPrice: ${price_info['final_price']:.2f}"
             )
 
-            # Update in session state
             idx = next(i for i, a in enumerate(st.session_state.appointments) if a.id == apt.id)
             st.session_state.appointments[idx] = new_appointment
             st.session_state.editing_appointment = None
@@ -220,9 +240,8 @@ def edit_appointment_modal():
             st.session_state.show_edit_modal = False
             st.rerun()
 
-    # Add delete button outside the form
+    # Delete button outside form
     if st.button("🗑️ Delete Appointment", type="primary", use_container_width=True):
-        # Remove from session state
         st.session_state.appointments = [
             a for a in st.session_state.appointments if a.id != apt.id
         ]
@@ -331,7 +350,9 @@ def main():
     st.subheader("📋 Appointments by Type")
     type_counts = {}
     for appt in appointments:
-        type_counts[appt.appointment_type.value] = type_counts.get(appt.appointment_type.value, 0) + 1
+        if appt is not None and hasattr(appt, 'appointment_type'):
+            type_value = appt.visit_type.value if hasattr(appt, 'visit_type') else appt.appointment_type.value
+            type_counts[type_value] = type_counts.get(type_value, 0) + 1
 
     for appt_type, count in type_counts.items():
         st.text(f"{appt_type}: {count}")
@@ -382,9 +403,10 @@ def main():
                 st.write(f"Status: {appt.status}")
 
             with cols[2]:
-                st.write("**Time**")
-                st.write(f"Start: {appt.start_time.strftime('%H:%M')}")
-                st.write(f"End: {appt.end_time.strftime('%H:%M')}")
+                if appt is not None:
+                    st.write("**Time**")
+                    st.write(f"Start: {appt.start_time.strftime('%H:%M')}")
+                    st.write(f"End: {appt.end_time.strftime('%H:%M')}")
 
             with cols[3]:
                 st.write("**Actions**")

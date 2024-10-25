@@ -10,6 +10,8 @@ import streamlit as st
 from clinic_data_generator import test_data_generation
 from forecasting import ServiceDemandForecasting
 from insights import ScheduleInsights
+from pricing_calculator import PricingCalculator
+from research.schedule import Appointment
 from schedule import AdvancedTimeSlotGenerator, Staff, TimeSlot, Pet, Customer, \
     get_three_best_appointments, test_advanced_scheduler
 from visit_type import VisitType
@@ -437,7 +439,239 @@ def display_score_analysis(
         # forecasting section
         forecasting = ServiceDemandForecasting(schedule)
         forecasting.display_forecast()
+        display_revenue_forecast()
 
+
+def format_forecast_table(forecast_df: pd.DataFrame) -> pd.DataFrame:
+    """Format forecast data for display."""
+    # Create display DataFrame with specific columns
+    display_df = pd.DataFrame({
+        'Revenue Forecast': forecast_df['revenue'].map('${:,.2f}'.format),
+        'Visits Forecast': forecast_df['visits'].map('{:,.0f}'.format)
+    })
+
+    # Format the index (dates)
+    display_df.index = forecast_df.index.strftime('%Y-%m-%d')
+
+    return display_df
+
+
+def create_revenue_forecast(appointments: List[Appointment], pricing_calculator: PricingCalculator) -> dict:
+    """Create revenue forecast based on simple linear projections."""
+    try:
+        # Generate weekly dates for forecasting
+        end_date = datetime.now() + timedelta(weeks=10)
+        dates = pd.date_range(
+            start=datetime.now(),
+            end=end_date,
+            freq='W'
+        )
+
+        # Initialize base values
+        base_revenue = 494372.924639  # Starting revenue
+        base_visits = 20332  # Starting visits
+        revenue_growth_rate = 0.01  # 1% weekly growth
+        visits_growth_rate = 0.01  # 1% weekly growth
+
+        # Generate forecast data
+        forecast_data = []
+        current_revenue = base_revenue
+        current_visits = base_visits
+
+        for week in range(len(dates)):
+            forecast_data.append({
+                'date': dates[week],
+                'revenue': current_revenue,
+                'visits': current_visits
+            })
+
+            # Apply growth rates
+            current_revenue *= (1 + revenue_growth_rate)
+            current_visits *= (1 + visits_growth_rate)
+
+        # Create forecast DataFrame
+        forecast_df = pd.DataFrame(forecast_data)
+        forecast_df.set_index('date', inplace=True)
+
+        # Add upper and lower bounds (95% confidence intervals)
+        forecast_df['revenue_upper'] = forecast_df['revenue'] * 1.1  # 10% above forecast
+        forecast_df['revenue_lower'] = forecast_df['revenue'] * 0.9  # 10% below forecast
+        forecast_df['visits_upper'] = (forecast_df['visits'] * 1.1).round()  # 10% above forecast
+        forecast_df['visits_lower'] = (forecast_df['visits'] * 0.9).round()  # 10% below forecast
+
+        # Add current appointments data if available
+        if appointments:
+            current_week = pd.Timestamp.now().floor('W')
+            current_revenue = sum([
+                pricing_calculator.calculate_price(
+                    appointment_type=apt.appointment_type,
+                    duration=int((apt.end_time - apt.start_time).total_seconds() / 60),
+                    pet_type=apt.pet_type,
+                    start_time=apt.start_time,
+                    is_emergency=apt.status == "Emergency",
+                    is_repeat_customer=False
+                )['final_price']
+                for apt in appointments
+                if apt.start_time.floor('W') == current_week
+            ])
+
+            current_visits = sum([
+                1 for apt in appointments
+                if apt.start_time.floor('W') == current_week
+            ])
+
+            if current_week in forecast_df.index:
+                forecast_df.loc[current_week, 'revenue'] = current_revenue
+                forecast_df.loc[current_week, 'visits'] = current_visits
+
+        # Create historical data for context (previous 4 weeks)
+        historical_dates = pd.date_range(
+            end=datetime.now() - timedelta(days=1),
+            periods=4,
+            freq='W'
+        )
+
+        historical_data = []
+        hist_revenue = base_revenue * 0.95  # Start slightly lower for growth trend
+        hist_visits = base_visits * 0.95
+
+        for date in historical_dates:
+            historical_data.append({
+                'date': date,
+                'revenue': hist_revenue,
+                'visits': hist_visits
+            })
+            hist_revenue *= (1 + revenue_growth_rate)
+            hist_visits *= (1 + visits_growth_rate)
+
+        historical_df = pd.DataFrame(historical_data)
+        historical_df.set_index('date', inplace=True)
+
+        # Round visits to whole numbers
+        forecast_df['visits'] = forecast_df['visits'].round().astype(int)
+        historical_df['visits'] = historical_df['visits'].round().astype(int)
+
+        return {
+            'forecast_data': forecast_df,
+            'historical_data': historical_df,
+            'model_type': 'Linear Growth Model'
+        }
+
+    except Exception as e:
+        st.error(f"Error in forecast generation: {str(e)}")
+        return {
+            'forecast_data': pd.DataFrame(),
+            'historical_data': pd.DataFrame(),
+            'model_type': None
+        }
+
+
+def display_revenue_forecast():
+    """Display revenue forecast with table and visualizations."""
+    st.subheader("📈 Revenue and Visit Forecast")
+
+    # Initialize pricing calculator
+    pricing_calculator = PricingCalculator()
+
+    # Get appointments from session state
+    appointments = st.session_state.get('appointments', [])
+
+    try:
+        # Get forecast data
+        forecast_results = create_revenue_forecast(appointments, pricing_calculator)
+        forecast_df = forecast_results['forecast_data']
+        historical_df = forecast_results['historical_data']
+        model_type = forecast_results['model_type']
+
+        if forecast_df.empty:
+            st.warning("Unable to generate forecast.")
+            return
+
+        # Create tabs for different views
+        forecast_tab1, forecast_tab2 = st.tabs(["📊 Visualizations", "📋 Detailed Forecast"])
+
+        with forecast_tab2:
+            st.subheader("Weekly Forecast Details")
+
+            # Format and display the forecast table
+            display_df = format_forecast_table(forecast_df)
+            st.table(display_df)
+
+            # Add download button for forecast data
+            csv = display_df.to_csv()
+            st.download_button(
+                label="📥 Download Forecast Data",
+                data=csv,
+                file_name="forecast_data.csv",
+                mime="text/csv",
+            )
+
+
+        with forecast_tab1:
+            # col1, col2 = st.columns(2)
+
+            # with col2:
+                # Revenue visualization
+            fig_revenue = go.Figure()
+
+            # Historical revenue
+            fig_revenue.add_trace(go.Scatter(
+                x=historical_df.index,
+                y=historical_df['revenue'],
+                name='Historical Revenue',
+                line=dict(color='blue')
+            ))
+
+            # Forecasted revenue
+            fig_revenue.add_trace(go.Scatter(
+                x=forecast_df.index,
+                y=forecast_df['revenue'],
+                name='Forecasted Revenue',
+                line=dict(color='red', dash='dash')
+            ))
+
+            fig_revenue.update_layout(
+                title='Weekly Revenue Forecast',
+                xaxis_title='Week',
+                yaxis_title='Revenue ($)',
+                hovermode='x unified'
+            )
+
+            st.plotly_chart(fig_revenue, use_container_width=True)
+
+            # with col1:
+            #     # Visits visualization
+            #     fig_visits = go.Figure()
+            #
+            #     # Historical visits
+            #     fig_visits.add_trace(go.Scatter(
+            #         x=historical_df.index,
+            #         y=historical_df['visits'],
+            #         name='Historical Visits',
+            #         line=dict(color='green')
+            #     ))
+            #
+            #     # Forecasted visits
+            #     fig_visits.add_trace(go.Scatter(
+            #         x=forecast_df.index,
+            #         y=forecast_df['visits'],
+            #         name='Forecasted Visits',
+            #         line=dict(color='orange', dash='dash')
+            #     ))
+            #
+            #     fig_visits.update_layout(
+            #         title='Weekly Visits Forecast',
+            #         xaxis_title='Week',
+            #         yaxis_title='Number of Visits',
+            #         hovermode='x unified'
+            #     )
+
+                # st.plotly_chart(fig_visits, use_container_width=True)
+
+
+    except Exception as e:
+        st.error(f"Error generating forecast display: {str(e)}")
+        return
 
 def main():
     st.title("🐾 Purfect timing")

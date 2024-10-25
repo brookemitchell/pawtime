@@ -41,8 +41,8 @@ var_forecast_df = pd.DataFrame(var_forecast, index=pd.date_range(start=ts_data.i
 # The visits forecast for the next 10 weeks is stored in var_forecast_df['visits']
 
 comparison_df = pd.DataFrame({
-    'ARIMA_Revenue_Forecast': arima_forecast,
-    'SARIMA_Revenue_Forecast': sarima_forecast,
+    # 'ARIMA_Revenue_Forecast': arima_forecast,
+    # 'SARIMA_Revenue_Forecast': sarima_forecast,
     'VAR_Revenue_Forecast': var_forecast_df['revenue'],
     'VAR Visits_Forecast': var_forecast_df['visits']
 }, index=pd.date_range(start=ts_data.index[-1] + pd.Timedelta(weeks=1), periods=10, freq='W'))

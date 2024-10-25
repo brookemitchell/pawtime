@@ -434,10 +434,7 @@ def display_score_analysis(
         insights.display_specialization_insights()
 
     with tab4:
-
-        st.subheader("🎯 Service Distribution Analysis")
-
-        # Add forecasting section
+        # forecasting section
         forecasting = ServiceDemandForecasting(schedule)
         forecasting.display_forecast()
 
@@ -455,7 +452,6 @@ def main():
         st.sidebar.write(f"• {staff_id}")
 
     # Display current schedule
-    st.header("Current Daily Schedule")
     fig = create_schedule_gantt(schedule)
     if fig:
         st.plotly_chart(fig, use_container_width=True)

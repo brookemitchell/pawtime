@@ -382,7 +382,6 @@ def display_score_analysis(
     tab1, tab2, tab3, tab4 = st.tabs(["Individual Breakdowns", "Comparison", "Insights", "Forecast"])
 
     with tab1:
-        # print(all_scores)
         for i, (time, scores) in enumerate(all_scores):
             col1, col2 = st.columns([2, 1])
 
@@ -397,8 +396,6 @@ def display_score_analysis(
                 st.markdown(f"**Total Score: {sum(scores.values()):.1f}/100**")
                 st.markdown("#### Key Factors:")
                 for category, score in scores.items():
-                    print(category, score)
-                    print(visualizer.score_categories[category])
                     max_score = visualizer.score_categories[category]
                     if score >= 0.5 * max_score:
                         st.markdown(f"✅ Good {category.lower()}")

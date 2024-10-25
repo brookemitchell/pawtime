@@ -252,18 +252,18 @@ def get_appointment_options(
     # Initialize veterinarians (in practice, this would come from a database)
     vets = [
         Veterinarian(
-            id="V1", name="Dr. Smith",
+            id="V1", name="Smith",
             specialties={"general", "surgery"},
             experience_years=15, base_rate=100.00,
             emergency_qualified=True
         ),
         Veterinarian(
-            id="V2", name="Dr. Johnson",
+            id="V2", name="Patel",
             specialties={"exotic"},
             experience_years=8, base_rate=90.00
         ),
         Veterinarian(
-            id="V3", name="Dr. Patel",
+            id="V3", name="Xin",
             specialties={"general", "dental"},
             experience_years=12, base_rate=95.00,
             emergency_qualified=True

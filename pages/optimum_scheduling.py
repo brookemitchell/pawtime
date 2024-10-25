@@ -2,6 +2,7 @@ import random
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -447,58 +448,183 @@ def format_forecast_table(forecast_df: pd.DataFrame) -> pd.DataFrame:
         'Visits Forecast': forecast_df['visits'].map('{:,.0f}'.format)
     })
 
-    # Format the index (dates)
+    # Format the index (dates) with consistent weekly format
     display_df.index = forecast_df.index.strftime('%Y-%m-%d')
+    display_df.index.name = 'Week Starting'
 
     return display_df
 
 
 def create_revenue_forecast(appointments: List[Appointment], pricing_calculator: PricingCalculator) -> dict:
-    """Create revenue forecast based on simple linear projections."""
+    """Create revenue forecast with adjusted scale, more data points, and special events."""
     try:
-        # Generate weekly dates for forecasting
-        end_date = datetime.now() + timedelta(weeks=10)
+        # Generate weekly dates for forecasting (doubled to 20 weeks)
+        start_date = pd.Timestamp.now().normalize()
+        start_date = start_date - pd.Timedelta(days=start_date.weekday())
+
         dates = pd.date_range(
-            start=datetime.now(),
-            end=end_date,
-            freq='W'
+            start=start_date,
+            periods=20,  # Doubled forecast period
+            freq='W-MON'
         )
 
-        # Initialize base values
-        base_revenue = 494372.924639  # Starting revenue
-        base_visits = 20332  # Starting visits
-        revenue_growth_rate = 0.01  # 1% weekly growth
-        visits_growth_rate = 0.01  # 1% weekly growth
+        # Scale factors
+        REVENUE_SCALE = 50  # Reduce revenue by factor of 50
+        VISITS_SCALE = 50  # Reduce visits by factor of 50
+
+        # Seasonal patterns (multipliers)
+        seasonal_patterns = {
+            # Monthly seasonality (weeks in month)
+            1: 1.08,  # First week: Higher due to payday
+            2: 0.98,  # Second week: Slight dip
+            3: 1.03,  # Third week: Recovery
+            4: 0.95,  # Fourth week: End of month dip
+            5: 1.0,  # Fifth week: Normal
+
+            # Day of week adjustments
+            'mon': 1.15,  # Monday: High demand
+            'tue': 1.08,  # Tuesday: Above average
+            'wed': 1.0,  # Wednesday: Average
+            'thu': 0.95,  # Thursday: Below average
+            'fri': 1.12  # Friday: High for weekend prep
+        }
+
+        # Special events and their impacts
+        special_events = {
+            # Format: 'YYYY-MM-DD': (event_name, revenue_multiplier, visits_multiplier)
+            (start_date + pd.Timedelta(weeks=3)).strftime('%Y-%m-%d'):
+                ('Pet Vaccination Drive', 1.3, 1.4),
+            (start_date + pd.Timedelta(weeks=7)).strftime('%Y-%m-%d'):
+                ('Local Pet Show', 1.2, 1.25),
+            (start_date + pd.Timedelta(weeks=12)).strftime('%Y-%m-%d'):
+                ('Summer Health Check Campaign', 1.25, 1.3),
+            (start_date + pd.Timedelta(weeks=16)).strftime('%Y-%m-%d'):
+                ('Annual Wellness Week', 1.35, 1.45)
+        }
+
+        # Initialize base values with lower scale
+        base_revenue = 494372.924639 / REVENUE_SCALE  # Scaled down revenue
+        base_visits = 20332 / VISITS_SCALE  # Scaled down visits
+
+        # Randomized growth rates with lower volatility
+        np.random.seed(42)  # For reproducibility
+        revenue_growth_rates = np.random.normal(0.01, 0.001, len(dates))  # Reduced std to 0.1%
+        visit_growth_rates = np.random.normal(0.01, 0.0005, len(dates))  # Reduced std to 0.05%
 
         # Generate forecast data
         forecast_data = []
         current_revenue = base_revenue
         current_visits = base_visits
+        event_annotations = []
 
-        for week in range(len(dates)):
+        for i, date in enumerate(dates):
+            # Get week number in month
+            week_in_month = (date.day - 1) // 7 + 1
+
+            # Base seasonal adjustments
+            seasonal_multiplier = seasonal_patterns.get(week_in_month, 1.0)
+            day_multiplier = seasonal_patterns.get(date.strftime('%a').lower(), 1.0)
+
+            # Reduced random noise (±2% for revenue, ±1% for visits)
+            revenue_noise = np.random.uniform(0.98, 1.02)
+            visit_noise = np.random.uniform(0.99, 1.01)
+
+            # Check for special events
+            date_str = date.strftime('%Y-%m-%d')
+            if date_str in special_events:
+                event_name, rev_mult, vis_mult = special_events[date_str]
+                event_multiplier_revenue = rev_mult
+                event_multiplier_visits = vis_mult
+                event_annotations.append({
+                    'date': date,
+                    'event': event_name,
+                    'impact_revenue': f"+{((rev_mult - 1) * 100):.0f}%",
+                    'impact_visits': f"+{((vis_mult - 1) * 100):.0f}%"
+                })
+            else:
+                event_multiplier_revenue = 1.0
+                event_multiplier_visits = 1.0
+
+            # Calculate adjusted values
+            adjusted_revenue = (current_revenue *
+                                seasonal_multiplier *
+                                day_multiplier *
+                                revenue_noise *
+                                event_multiplier_revenue)
+
+            adjusted_visits = (current_visits *
+                               seasonal_multiplier *
+                               day_multiplier *
+                               visit_noise *
+                               event_multiplier_visits)
+
             forecast_data.append({
-                'date': dates[week],
-                'revenue': current_revenue,
-                'visits': current_visits
+                'date': date,
+                'revenue': adjusted_revenue,
+                'visits': adjusted_visits,
+                'seasonal_factor': seasonal_multiplier,
+                'day_factor': day_multiplier,
+                'has_event': date_str in special_events
             })
 
-            # Apply growth rates
-            current_revenue *= (1 + revenue_growth_rate)
-            current_visits *= (1 + visits_growth_rate)
+            # Apply growth rates for next period
+            current_revenue *= (1 + revenue_growth_rates[i])
+            current_visits *= (1 + visit_growth_rates[i])
 
         # Create forecast DataFrame
         forecast_df = pd.DataFrame(forecast_data)
         forecast_df.set_index('date', inplace=True)
 
-        # Add upper and lower bounds (95% confidence intervals)
-        forecast_df['revenue_upper'] = forecast_df['revenue'] * 1.1  # 10% above forecast
-        forecast_df['revenue_lower'] = forecast_df['revenue'] * 0.9  # 10% below forecast
-        forecast_df['visits_upper'] = (forecast_df['visits'] * 1.1).round()  # 10% above forecast
-        forecast_df['visits_lower'] = (forecast_df['visits'] * 0.9).round()  # 10% below forecast
+        # Calculate confidence intervals with reduced volatility
+        volatility_factor = 0.08  # Reduced from 0.15 to 0.08
+        forecast_df['revenue_upper'] = forecast_df['revenue'] * (1 + volatility_factor *
+                                                                 np.sqrt(np.arange(len(forecast_df)) + 1))
+        forecast_df['revenue_lower'] = forecast_df['revenue'] * (1 - volatility_factor *
+                                                                 np.sqrt(np.arange(len(forecast_df)) + 1))
 
-        # Add current appointments data if available
+        forecast_df['visits_upper'] = (forecast_df['visits'] * (1 + volatility_factor *
+                                                                np.sqrt(np.arange(len(forecast_df)) + 1))).round()
+        forecast_df['visits_lower'] = (forecast_df['visits'] * (1 - volatility_factor *
+                                                                np.sqrt(np.arange(len(forecast_df)) + 1))).round()
+
+        # Generate historical data (8 weeks instead of 4)
+        historical_dates = pd.date_range(
+            end=start_date - pd.Timedelta(days=1),
+            periods=8,  # Doubled historical period
+            freq='W-MON'
+        )
+
+        historical_data = []
+        hist_revenue = base_revenue * 0.95
+        hist_visits = base_visits * 0.95
+
+        for date in historical_dates:
+            week_in_month = (date.day - 1) // 7 + 1
+            seasonal_multiplier = seasonal_patterns.get(week_in_month, 1.0)
+            day_multiplier = seasonal_patterns.get(date.strftime('%a').lower(), 1.0)
+
+            revenue_noise = np.random.uniform(0.98, 1.02)
+            visit_noise = np.random.uniform(0.99, 1.01)
+
+            historical_data.append({
+                'date': date,
+                'revenue': hist_revenue * seasonal_multiplier * day_multiplier * revenue_noise,
+                'visits': hist_visits * seasonal_multiplier * day_multiplier * visit_noise
+            })
+
+            hist_revenue *= 1.01
+            hist_visits *= 1.01
+
+        historical_df = pd.DataFrame(historical_data)
+        historical_df.set_index('date', inplace=True)
+
+        # Round visits to whole numbers
+        forecast_df['visits'] = forecast_df['visits'].round().astype(int)
+        historical_df['visits'] = historical_df['visits'].round().astype(int)
+
+        # Add current appointments if available
         if appointments:
-            current_week = pd.Timestamp.now().floor('W')
+            current_week_start = start_date
             current_revenue = sum([
                 pricing_calculator.calculate_price(
                     appointment_type=apt.appointment_type,
@@ -509,49 +635,26 @@ def create_revenue_forecast(appointments: List[Appointment], pricing_calculator:
                     is_repeat_customer=False
                 )['final_price']
                 for apt in appointments
-                if apt.start_time.floor('W') == current_week
-            ])
+                if apt.start_time.date() >= current_week_start.date() and
+                   apt.start_time.date() < (current_week_start + pd.Timedelta(days=7)).date()
+            ]) / REVENUE_SCALE  # Apply scaling
 
             current_visits = sum([
                 1 for apt in appointments
-                if apt.start_time.floor('W') == current_week
-            ])
+                if apt.start_time.date() >= current_week_start.date() and
+                   apt.start_time.date() < (current_week_start + pd.Timedelta(days=7)).date()
+            ]) / VISITS_SCALE  # Apply scaling
 
-            if current_week in forecast_df.index:
-                forecast_df.loc[current_week, 'revenue'] = current_revenue
-                forecast_df.loc[current_week, 'visits'] = current_visits
-
-        # Create historical data for context (previous 4 weeks)
-        historical_dates = pd.date_range(
-            end=datetime.now() - timedelta(days=1),
-            periods=4,
-            freq='W'
-        )
-
-        historical_data = []
-        hist_revenue = base_revenue * 0.95  # Start slightly lower for growth trend
-        hist_visits = base_visits * 0.95
-
-        for date in historical_dates:
-            historical_data.append({
-                'date': date,
-                'revenue': hist_revenue,
-                'visits': hist_visits
-            })
-            hist_revenue *= (1 + revenue_growth_rate)
-            hist_visits *= (1 + visits_growth_rate)
-
-        historical_df = pd.DataFrame(historical_data)
-        historical_df.set_index('date', inplace=True)
-
-        # Round visits to whole numbers
-        forecast_df['visits'] = forecast_df['visits'].round().astype(int)
-        historical_df['visits'] = historical_df['visits'].round().astype(int)
+            if current_week_start in forecast_df.index:
+                forecast_df.loc[current_week_start, 'revenue'] = current_revenue
+                forecast_df.loc[current_week_start, 'visits'] = current_visits
 
         return {
             'forecast_data': forecast_df,
             'historical_data': historical_df,
-            'model_type': 'Linear Growth Model'
+            'model_type': 'Seasonal Model with Special Events',
+            'events': event_annotations,
+            'seasonality': seasonal_patterns
         }
 
     except Exception as e:
@@ -559,9 +662,10 @@ def create_revenue_forecast(appointments: List[Appointment], pricing_calculator:
         return {
             'forecast_data': pd.DataFrame(),
             'historical_data': pd.DataFrame(),
-            'model_type': None
+            'model_type': None,
+            'events': [],
+            'seasonality': None
         }
-
 
 def display_revenue_forecast():
     """Display revenue forecast with table and visualizations."""
@@ -584,8 +688,74 @@ def display_revenue_forecast():
             st.warning("Unable to generate forecast.")
             return
 
+        # Display model type and date range
+        st.info(f"Forecast Model: {model_type}")
+        st.caption(
+            f"Forecast period: {forecast_df.index[0].strftime('%Y-%m-%d')} to {forecast_df.index[-1].strftime('%Y-%m-%d')}")
+
         # Create tabs for different views
         forecast_tab1, forecast_tab2 = st.tabs(["📊 Visualizations", "📋 Detailed Forecast"])
+
+        with forecast_tab1:
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Revenue visualization
+                fig_revenue = go.Figure()
+
+                # Historical revenue
+                fig_revenue.add_trace(go.Scatter(
+                    x=historical_df.index,
+                    y=historical_df['revenue'],
+                    name='Historical Revenue',
+                    line=dict(color='blue')
+                ))
+
+                # Forecasted revenue
+                fig_revenue.add_trace(go.Scatter(
+                    x=forecast_df.index,
+                    y=forecast_df['revenue'],
+                    name='Forecasted Revenue',
+                    line=dict(color='red', dash='dash')
+                ))
+
+                fig_revenue.update_layout(
+                    title='Weekly Revenue Forecast',
+                    xaxis_title='Week',
+                    yaxis_title='Revenue ($)',
+                    hovermode='x unified'
+                )
+
+                st.plotly_chart(fig_revenue, use_container_width=True)
+
+            with col2:
+                # Visits visualization
+                fig_visits = go.Figure()
+
+                # Historical visits
+                fig_visits.add_trace(go.Scatter(
+                    x=historical_df.index,
+                    y=historical_df['visits'],
+                    name='Historical Visits',
+                    line=dict(color='green')
+                ))
+
+                # Forecasted visits
+                fig_visits.add_trace(go.Scatter(
+                    x=forecast_df.index,
+                    y=forecast_df['visits'],
+                    name='Forecasted Visits',
+                    line=dict(color='orange', dash='dash')
+                ))
+
+                fig_visits.update_layout(
+                    title='Weekly Visits Forecast',
+                    xaxis_title='Week',
+                    yaxis_title='Number of Visits',
+                    hovermode='x unified'
+                )
+
+                st.plotly_chart(fig_visits, use_container_width=True)
 
         with forecast_tab2:
             st.subheader("Weekly Forecast Details")
@@ -603,73 +773,9 @@ def display_revenue_forecast():
                 mime="text/csv",
             )
 
-
-        with forecast_tab1:
-            # col1, col2 = st.columns(2)
-
-            # with col2:
-                # Revenue visualization
-            fig_revenue = go.Figure()
-
-            # Historical revenue
-            fig_revenue.add_trace(go.Scatter(
-                x=historical_df.index,
-                y=historical_df['revenue'],
-                name='Historical Revenue',
-                line=dict(color='blue')
-            ))
-
-            # Forecasted revenue
-            fig_revenue.add_trace(go.Scatter(
-                x=forecast_df.index,
-                y=forecast_df['revenue'],
-                name='Forecasted Revenue',
-                line=dict(color='red', dash='dash')
-            ))
-
-            fig_revenue.update_layout(
-                title='Weekly Revenue Forecast',
-                xaxis_title='Week',
-                yaxis_title='Revenue ($)',
-                hovermode='x unified'
-            )
-
-            st.plotly_chart(fig_revenue, use_container_width=True)
-
-            # with col1:
-            #     # Visits visualization
-            #     fig_visits = go.Figure()
-            #
-            #     # Historical visits
-            #     fig_visits.add_trace(go.Scatter(
-            #         x=historical_df.index,
-            #         y=historical_df['visits'],
-            #         name='Historical Visits',
-            #         line=dict(color='green')
-            #     ))
-            #
-            #     # Forecasted visits
-            #     fig_visits.add_trace(go.Scatter(
-            #         x=forecast_df.index,
-            #         y=forecast_df['visits'],
-            #         name='Forecasted Visits',
-            #         line=dict(color='orange', dash='dash')
-            #     ))
-            #
-            #     fig_visits.update_layout(
-            #         title='Weekly Visits Forecast',
-            #         xaxis_title='Week',
-            #         yaxis_title='Number of Visits',
-            #         hovermode='x unified'
-            #     )
-
-                # st.plotly_chart(fig_visits, use_container_width=True)
-
-
     except Exception as e:
         st.error(f"Error generating forecast display: {str(e)}")
         return
-
 def main():
     st.title("🐾 Purfect timing")
 

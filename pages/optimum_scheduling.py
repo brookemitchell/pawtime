@@ -697,65 +697,33 @@ def display_revenue_forecast():
         forecast_tab1, forecast_tab2 = st.tabs(["📊 Visualizations", "📋 Detailed Forecast"])
 
         with forecast_tab1:
-            col1, col2 = st.columns(2)
+            # Revenue visualization
+            fig_revenue = go.Figure()
 
-            with col1:
-                # Revenue visualization
-                fig_revenue = go.Figure()
+            # Historical revenue
+            fig_revenue.add_trace(go.Scatter(
+                x=historical_df.index,
+                y=historical_df['revenue'],
+                name='Historical Revenue',
+                line=dict(color='blue')
+            ))
 
-                # Historical revenue
-                fig_revenue.add_trace(go.Scatter(
-                    x=historical_df.index,
-                    y=historical_df['revenue'],
-                    name='Historical Revenue',
-                    line=dict(color='blue')
-                ))
+            # Forecasted revenue
+            fig_revenue.add_trace(go.Scatter(
+                x=forecast_df.index,
+                y=forecast_df['revenue'],
+                name='Forecasted Revenue',
+                line=dict(color='red', dash='dash')
+            ))
 
-                # Forecasted revenue
-                fig_revenue.add_trace(go.Scatter(
-                    x=forecast_df.index,
-                    y=forecast_df['revenue'],
-                    name='Forecasted Revenue',
-                    line=dict(color='red', dash='dash')
-                ))
+            fig_revenue.update_layout(
+                title='Weekly Revenue Forecast',
+                xaxis_title='Week',
+                yaxis_title='Revenue ($)',
+                hovermode='x unified'
+            )
 
-                fig_revenue.update_layout(
-                    title='Weekly Revenue Forecast',
-                    xaxis_title='Week',
-                    yaxis_title='Revenue ($)',
-                    hovermode='x unified'
-                )
-
-                st.plotly_chart(fig_revenue, use_container_width=True)
-
-            with col2:
-                # Visits visualization
-                fig_visits = go.Figure()
-
-                # Historical visits
-                fig_visits.add_trace(go.Scatter(
-                    x=historical_df.index,
-                    y=historical_df['visits'],
-                    name='Historical Visits',
-                    line=dict(color='green')
-                ))
-
-                # Forecasted visits
-                fig_visits.add_trace(go.Scatter(
-                    x=forecast_df.index,
-                    y=forecast_df['visits'],
-                    name='Forecasted Visits',
-                    line=dict(color='orange', dash='dash')
-                ))
-
-                fig_visits.update_layout(
-                    title='Weekly Visits Forecast',
-                    xaxis_title='Week',
-                    yaxis_title='Number of Visits',
-                    hovermode='x unified'
-                )
-
-                st.plotly_chart(fig_visits, use_container_width=True)
+            st.plotly_chart(fig_revenue, use_container_width=True)
 
         with forecast_tab2:
             st.subheader("Weekly Forecast Details")
